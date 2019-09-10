@@ -8,15 +8,16 @@ pub mod settings;
 
 use std::io;
 
-use actix_web::{middleware::Logger, App, HttpServer};
+use actix_web::{middleware::Logger, web, App, HttpServer};
 use env_logger::Env;
 use futures::{Future, Stream};
 use lazy_static::lazy_static;
-use log::{info, error};
+use log::{error, info};
 
 use crate::{
     bitcoin::{tx_stream, BitcoinClient},
     db::KeyDB,
+    net::prefix_search,
     settings::Settings,
 };
 
@@ -52,17 +53,19 @@ fn main() -> io::Result<()> {
     actix_rt::Arbiter::current().send(connection.map_err(|e| error!("{:?}", e)));
 
     let key_db_inner = key_db.clone();
-    let insertion_loop = item_stream.for_each(move |pairs| {
-        // TODO: Batch insert
-        pairs.iter().for_each(|(input_hash, item)| {
-            // TODO: Catch errors
-            key_db_inner.put(input_hash, item).unwrap();
+    let insertion_loop = item_stream
+        .for_each(move |pairs| {
+            // TODO: Batch insert
+            pairs.iter().for_each(|(input_hash, item)| {
+                // TODO: Catch errors
+                key_db_inner.put(input_hash, item).unwrap();
+            });
+            Ok(())
+        })
+        .map_err(|_| {
+            // TODO: Better error handling
+            error!("ZMQ stream failed");
         });
-        Ok(())
-    }).map_err(|_| {
-        // TODO: Better error handling
-        error!("ZMQ stream failed");
-    });
     actix_rt::Arbiter::current().send(insertion_loop);
 
     // Setup REST server
@@ -74,7 +77,12 @@ fn main() -> io::Result<()> {
         App::new()
             .wrap(Logger::default())
             .wrap(Logger::new("%a %{User-Agent}i"))
-        // .route("/prefix/{prefix}", prefix_search)
+            .service(
+                web::resource("/prefix/{prefix}")
+                    .data(key_db_inner)
+                    .data(bitcoin_client_inner)
+                    .route(web::get().to_async(prefix_search)),
+            )
     })
     .bind(&SETTINGS.bind)?
     .start();

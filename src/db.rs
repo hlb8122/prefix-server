@@ -23,10 +23,11 @@ impl KeyDB {
         self.0.put(&hash, raw_item)
     }
 
-    pub fn get(&self, addr: &[u8]) -> Result<Option<Item>, Error> {
+    pub fn get(&self, addr: &[u8]) -> Option<Item> {
         // This panics if stored bytes are fucked
         self.0
-            .get(&addr)
-            .map(|opt_dat| opt_dat.map(|dat| Item::decode(&dat[..]).unwrap()))
+            .prefix_iterator(addr)
+            .map(|(_prefix, raw_item)| Item::decode(&raw_item[..]).unwrap())
+            .last()
     }
 }
