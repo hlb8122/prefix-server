@@ -34,13 +34,13 @@ impl Settings {
         s.set_default("rpc_password", "password").unwrap();
         s.set_default("zmq_port", "28332").unwrap();
         let mut default_db = home_dir.clone();
-        default_db.push(".keyserver-rust/db");
+        default_db.push(".prefix-server/db");
         s.set_default("db_path", default_db.to_str()).unwrap();
         s.set_default("network", "regnet").unwrap();
 
         // Load config from file
         let mut default_config = home_dir.clone();
-        default_config.push(".keyserver-rust/config");
+        default_config.push(".prefix-server/config");
         let default_config_str = default_config.to_str().unwrap();
         let config_path = matches.value_of("config").unwrap_or(default_config_str);
         s.merge(File::with_name(config_path).required(false))?;

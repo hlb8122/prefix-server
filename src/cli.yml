@@ -11,7 +11,7 @@ args:
     - bind:
         short: b
         long: bind
-        help: Bind address for keyserver
+        help: Bind address for server
         takes_value: true
     - node-ip:
         long: node-ip
