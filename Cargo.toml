@@ -4,6 +4,29 @@ version = "0.1.0"
 authors = ["Harry L. Barber <hlbarber93@gmail.com>"]
 edition = "2018"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
+actix-web = "*"
+actix-service = "*"
+actix-rt = "*"
+bitcoin = "*"
+bitcoin-zmq = "*"
+bitcoin_hashes = "*"
+bytes = "*"
+clap = { version = "*", features = ["yaml"] }
+config = "*"
+dirs = "*"
+env_logger = "*"
+hex = "*"
+lazy_static = "*"
+log = "*"
+futures = "*"
+prost = "*"
+reqwest = "*"
+rocksdb = "*"
+secp256k1 = "0.12.0"
+serde = "*"
+serde_derive = "*"
+serde_json = "*"
+
+[build-dependencies]
+prost-build = "*"
