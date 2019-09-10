@@ -1,4 +1,6 @@
 # Prefix Server
+[![Build Status](https://travis-ci.org/hlb8122/prefix-server.svg?branch=master)](https://travis-ci.org/hlb8122/prefix-server)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 This provides a lightweight service allowing clients to lookup tranasctions via prefix of the SHA256 digest of their inputs.
 
