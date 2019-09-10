@@ -2,6 +2,6 @@ syntax = "proto3";
 package models;
 
 message Item {
-    string txid = 1;
+    bytes tx_id = 1;
     uint32 index = 2;
 }

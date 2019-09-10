@@ -10,8 +10,9 @@ use std::io;
 
 use actix_web::{middleware::Logger, App, HttpServer};
 use env_logger::Env;
+use futures::{Future, Stream};
 use lazy_static::lazy_static;
-use log::info;
+use log::{info, error};
 
 use crate::{
     bitcoin::{tx_stream, BitcoinClient},
@@ -30,7 +31,7 @@ lazy_static! {
 fn main() -> io::Result<()> {
     let sys = actix_rt::System::new("prefix-server");
 
-    // Init logging
+    // Setup logging
     env_logger::from_env(Env::default().default_filter_or("actix_web=info,prefix-server=info"))
         .init();
     info!("starting server @ {}", SETTINGS.bind);
@@ -38,23 +39,33 @@ fn main() -> io::Result<()> {
     // Open DB
     let key_db = KeyDB::try_new(&SETTINGS.db_path).unwrap();
 
-    // Init Bitcoin client
+    // Setup Bitcoin client
     let bitcoin_client = BitcoinClient::new(
         format!("http://{}:{}", SETTINGS.node_ip.clone(), SETTINGS.rpc_port),
         SETTINGS.rpc_username.clone(),
         SETTINGS.rpc_password.clone(),
     );
 
-    // Init ZMQ
-    let (tx_stream, connection) =
-        tx_stream::get_tx_stream(&format!("tcp://{}:{}", SETTINGS.node_ip, SETTINGS.zmq_port));
-    // let key_stream = tx_stream::extract_details(tx_stream);
-    // actix_rt::Arbiter::current().send(connection.map_err(|e| error!("{:?}", e)));
+    // Setup insertion loop
+    let (item_stream, connection) =
+        tx_stream::get_item_stream(&format!("tcp://{}:{}", SETTINGS.node_ip, SETTINGS.zmq_port));
+    actix_rt::Arbiter::current().send(connection.map_err(|e| error!("{:?}", e)));
 
-    // Setup peer polling logic
-    // actix_rt::Arbiter::current().send(client.peer_polling(key_db.clone(), key_stream));
+    let key_db_inner = key_db.clone();
+    let insertion_loop = item_stream.for_each(move |pairs| {
+        // TODO: Batch insert
+        pairs.iter().for_each(|(input_hash, item)| {
+            // TODO: Catch errors
+            key_db_inner.put(input_hash, item).unwrap();
+        });
+        Ok(())
+    }).map_err(|_| {
+        // TODO: Better error handling
+        error!("ZMQ stream failed");
+    });
+    actix_rt::Arbiter::current().send(insertion_loop);
 
-    // Init REST server
+    // Setup REST server
     HttpServer::new(move || {
         let key_db_inner = key_db.clone();
         let bitcoin_client_inner = bitcoin_client.clone();
