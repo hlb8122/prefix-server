@@ -13,3 +13,11 @@ jobs:
   - stage: build
     script:
       cargo build --verbose
+  - stage: regtest
+    script:
+    - sudo add-apt-repository -y ppa:bitcoin-abc/ppa
+    - sudo apt-get update
+    - sudo apt install -y libzmq3-dev
+    - sudo apt install -y bitcoind
+    - bitcoind -daemon -regtest -zmqpubrawtx=tcp://127.0.0.1:28332 -rpcallowip=0.0.0.0/0 -server -rpcuser=username -rpcpassword=password
+    - sleep 30
