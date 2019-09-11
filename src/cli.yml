@@ -1,7 +1,7 @@
 name: Prefix Server
 version: "0.1.0"
 author: Harry Barber <hlbarber93@gmail.com>
-about: Allows the lookup of transactions via prefix
+about: This provides a lightweight service allowing clients to lookup tranasctions via prefix of the SHA256 digest of their inputs.
 args:
     - config:
         short: c

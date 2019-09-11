@@ -34,7 +34,7 @@ impl Settings {
         let mut default_db = home_dir.clone();
         default_db.push(".prefix-server/db");
         s.set_default("db_path", default_db.to_str()).unwrap();
-        s.set_default("min_prefix", "1").unwrap();
+        s.set_default("min_prefix", "4").unwrap();
 
         // Load config from file
         let mut default_config = home_dir.clone();
