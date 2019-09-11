@@ -1,4 +1,5 @@
 mod client;
+pub mod scraper;
 pub mod tx_stream;
 
 pub const PRICE: u64 = 5;

@@ -45,3 +45,61 @@ A full list of command line arguments can be viewed via `prefix-server --help`.
 ```bash
 ./target/release/prefix-server [OPTIONS]
 ```
+
+## Usage
+
+The server has three endpoints:
+
+### Prefix Search
+
+The endpoint `/prefix/{prefix}` allows you to search indexed inputs by prefix. 
+
+One may include a query string `/prefix/{prefix}?start={start}&end={end}` to filter the search.
+
+The returned value is of the following form:
+
+```json
+{
+    "results": [
+        {
+            "raw_tx": <raw transaction>,
+            "input_index": <index of matching index>,
+            "time": <tx time>
+        }
+    ]
+}
+```
+
+The errors are as follows:
+
+| Status Code | Body | Description |
+| - | - | - |
+| 404 | prefix not found | The prefix did not match any indexed items |
+| 400 | invalid hex | The prefix was not in hexidecimal format |
+| 500 | client error | There was an error communicating with bitcoind |
+
+### Scrape (TODO)
+
+The endpoint `/scrape` taking the following JSON
+
+```json
+{
+    "start": <block number>,
+    "end": <optional block number>
+}
+```
+
+allows the indexing of all transactions between and including two block numbers.
+
+While the scraping is in progress the servers status will change from "idle" to "scraping" and calling `/scrape` again during this time will raise an error.
+
+The errors are as follows:
+
+| Status Code | Body | Description |
+| - | - | - |
+| 400 | invalid json | The JSON didn't meet the format above |
+| 400 | empty interval | The interval was empty |
+
+### Status (TODO)
+
+The endpoint `/status` returns the current state of the prefix server. This will either return `idle` or `scraping(<start block number>, <current block number>, <end block number>)`.

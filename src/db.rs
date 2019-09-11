@@ -23,11 +23,18 @@ impl KeyDB {
         self.0.put(&hash, raw_item)
     }
 
-    pub fn get(&self, addr: &[u8]) -> Option<Item> {
+    pub fn get(&self, addr: &[u8]) -> Option<Vec<Item>> {
         // This panics if stored bytes are fucked
-        self.0
+        let items: Vec<Item> = self
+            .0
             .prefix_iterator(addr)
             .map(|(_prefix, raw_item)| Item::decode(&raw_item[..]).unwrap())
-            .last()
+            .collect();
+
+        if items.is_empty() {
+            None
+        } else {
+            Some(items)
+        }
     }
 }

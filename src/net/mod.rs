@@ -2,7 +2,7 @@ pub mod errors;
 pub mod jsonrpc_client;
 
 use actix_web::{web, HttpResponse};
-use futures::{future::err, Future};
+use futures::{future::err, stream, Future, Stream};
 use serde_derive::Serialize;
 
 use crate::{bitcoin::BitcoinClient, db::KeyDB};
@@ -11,8 +11,18 @@ use errors::*;
 
 #[derive(Serialize)]
 struct PrefixResponse {
+    result: Vec<PrefixItem>,
+}
+
+#[derive(Serialize)]
+struct PrefixItem {
     raw_tx: String,
     input_index: u32,
+}
+
+pub fn status() -> Result<HttpResponse, ServerError> {
+    // TODO
+    Ok(HttpResponse::Ok().finish())
 }
 
 pub fn prefix_search(
@@ -26,19 +36,29 @@ pub fn prefix_search(
     };
 
     // Get from db
-    let item = match db_data.get(&raw_prefix) {
+    let items = match db_data.get(&raw_prefix) {
         Some(some) => some,
         None => return Box::new(err(ServerError::PrefixNotFound)),
     };
 
     // Get tx from bitcoind
-    let fut_tx = client.get_raw_tx(&item.tx_id);
+    let fut_txs = stream::iter_ok(items)
+        .and_then(move |item| {
+            client.get_raw_tx(&item.tx_id).map(move |raw_tx| PrefixItem {
+                raw_tx,
+                input_index: item.index,
+            })
+        })
+        .collect();
 
     // Create response
-    Box::new(fut_tx.map(move |raw_tx| {
-        HttpResponse::Ok().json(PrefixResponse {
-            raw_tx,
-            input_index: item.index
-        })
-    }).map_err(|e| e.into()))
+    Box::new(
+        fut_txs
+            .map(move |prefix_items| {
+                HttpResponse::Ok().json(PrefixResponse {
+                    result: prefix_items,
+                })
+            })
+            .map_err(|e| e.into()),
+    )
 }

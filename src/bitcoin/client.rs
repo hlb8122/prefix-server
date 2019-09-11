@@ -17,9 +17,10 @@ impl BitcoinClient {
         &self,
         tx_id: &[u8],
     ) -> Box<dyn Future<Item = String, Error = ClientError> + Send> {
-        let request = self
-            .0
-            .build_request("getrawtransaction".to_string(), vec![Value::String(hex::encode(tx_id))]);
+        let request = self.0.build_request(
+            "getrawtransaction".to_string(),
+            vec![Value::String(hex::encode(tx_id))],
+        );
         Box::new(
             self.0
                 .send_request(&request)

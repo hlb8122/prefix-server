@@ -7,12 +7,13 @@ use bitcoin_hashes::{sha256::Hash as Sha256, Hash};
 use bitcoin_zmq::{errors::SubscriptionError, Topic, ZMQSubscriber};
 use futures::{Future, Stream};
 
-use crate::models::Item;
+use crate::{models::Item, net::jsonrpc_client::ClientError};
 
 #[derive(Debug)]
 pub enum StreamError {
     Subscription(SubscriptionError),
     Deserialization(encode::Error),
+    Client(ClientError),
 }
 
 impl From<SubscriptionError> for StreamError {

@@ -9,7 +9,7 @@ use super::jsonrpc_client::ClientError;
 pub enum ServerError {
     PrefixNotFound,
     InvalidHex,
-    Client(ClientError)
+    Client(ClientError),
 }
 
 impl fmt::Display for ServerError {
@@ -17,7 +17,7 @@ impl fmt::Display for ServerError {
         let printable = match self {
             ServerError::PrefixNotFound => "prefix not found",
             ServerError::InvalidHex => "invalid hex",
-            ServerError::Client(_err) => "client error" // TODO: More detail here
+            ServerError::Client(_err) => "client error", // TODO: More detail here
         };
         write!(f, "{}", printable)
     }
