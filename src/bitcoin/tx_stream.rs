@@ -59,7 +59,11 @@ pub fn get_item_stream(
     let (tx_stream, connection) = get_tx_stream(node_addr);
     let item_stream = tx_stream.map(move |tx| {
         // TODO: The memory layout all berked up here
-        let tx_id = tx.txid().to_vec();
+        let mut tx_id: [u8; 32] = tx.txid().into_inner();
+        // Note reversal here
+        tx_id.reverse();
+        let tx_id = tx_id.to_vec();
+
         tx.input
             .iter()
             .map(move |input| {
@@ -70,7 +74,7 @@ pub fn get_item_stream(
             })
             .enumerate()
             .map(move |(index, input_hash)| {
-                let tx_id = tx_id.clone();
+                let tx_id = tx_id.clone(); // TODO: Remove this clone?
                 (
                     input_hash,
                     Item {
