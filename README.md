@@ -32,9 +32,7 @@ Settings may be given by `JSON`, `TOML`, `YAML`, `HJSON` and `INI` files and, by
 | `rpc_password` | Bitcoin RPC password | `password` |
 | `zmq_port` | Bitcoin ZMQ port | `28332` |
 | `db_path` | Database path | `~/.prefix-server/db` |
-| `network` | Bitcoin network | `regnet` |
-
-The `network` parameter must be either `mainnet`, `testnet` or `regnet`.
+| `min_prefix` | Minimum prefix length (4-bit multiplier) | `1` |
 
 Each of the parameters above can be overloaded via command line (replacing `_` with `-`). Additionaly, `--config` can be passed via command line to specify a configuration file at a custom location.
 

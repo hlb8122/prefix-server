@@ -2,8 +2,6 @@ use clap::App;
 use config::{Config, ConfigError, File};
 use serde_derive::Deserialize;
 
-use crate::bitcoin::Network;
-
 #[derive(Debug, Deserialize)]
 pub struct Settings {
     pub bind: String,
@@ -13,7 +11,7 @@ pub struct Settings {
     pub rpc_password: String,
     pub zmq_port: u16,
     pub db_path: String,
-    pub network: Network,
+    pub min_prefix: usize,
 }
 
 impl Settings {
@@ -36,7 +34,7 @@ impl Settings {
         let mut default_db = home_dir.clone();
         default_db.push(".prefix-server/db");
         s.set_default("db_path", default_db.to_str()).unwrap();
-        s.set_default("network", "regnet").unwrap();
+        s.set_default("min_prefix", "1").unwrap();
 
         // Load config from file
         let mut default_config = home_dir.clone();
@@ -80,9 +78,9 @@ impl Settings {
             s.set("db_path", db_path)?;
         }
 
-        // Set the bitcoin network
-        if let Some(db_path) = matches.value_of("network") {
-            s.set("network", db_path)?;
+        // Set the minimum prefix length
+        if let Some(min_prefix) = matches.value_of("min-prefix") {
+            s.set("min_prefix", min_prefix)?;
         }
 
         s.try_into()

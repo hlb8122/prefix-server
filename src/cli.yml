@@ -38,7 +38,7 @@ args:
         long: db-path
         help: Database path
         takes_value: true
-    - network:
-        long: network
-        help: Bitcoin network
+    - min-prefix:
+        long: min-prefix
+        help: Minimum prefix length (4-bit multiplier)
         takes_value: true

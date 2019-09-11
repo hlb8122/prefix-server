@@ -5,7 +5,7 @@ use actix_web::{web, HttpResponse};
 use futures::{future::err, stream, Future, Stream};
 use serde_derive::Serialize;
 
-use crate::{bitcoin::BitcoinClient, db::KeyDB};
+use crate::{bitcoin::BitcoinClient, db::KeyDB, SETTINGS};
 
 use errors::*;
 
@@ -30,6 +30,10 @@ pub fn prefix_search(
     db_data: web::Data<KeyDB>,
     client: web::Data<BitcoinClient>,
 ) -> Box<dyn Future<Item = HttpResponse, Error = ServerError>> {
+    if prefix.len() < SETTINGS.min_prefix {
+        return Box::new(err(ServerError::PrefixTooShort));
+    }
+
     let raw_prefix = match hex::decode(&*prefix) {
         Ok(ok) => ok,
         Err(e) => return Box::new(err(e.into())),
