@@ -28,6 +28,9 @@ impl KeyDB {
         let items: Vec<Item> = self
             .0
             .prefix_iterator(addr)
+            .take_while(|(prefix, _)| {
+                &prefix[..addr.len()] == addr
+            })
             .map(|(_prefix, raw_item)| {
                 // This is safe as long as DB is not corrupted
                 Item::decode(&raw_item[..]).unwrap()
