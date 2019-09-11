@@ -58,13 +58,18 @@ One may include a query string `/prefix/{prefix}?start={start}&end={end}` to fil
 
 The returned value is of the following form:
 
-```json
+```javascript
 {
     "results": [
         {
-            "raw_tx": <raw transaction>,
-            "input_index": <index of matching index>,
-            "time": <tx time>
+            "raw_tx": "02000000019b69251560ea1143de610...", // raw transaction
+            "input_index": 3, // index of matching input
+            "time": 1568170483 // transaction time
+        },
+        {
+            "raw_tx": "02000000019b69251560ea1143de610...", // raw transaction
+            "input_index": 1, // index of matching input
+            "time": 1568170214 // transaction time
         }
     ]
 }
@@ -78,14 +83,14 @@ The errors are as follows:
 | 400 | invalid hex | The prefix was not in hexidecimal format |
 | 500 | client error | There was an error communicating with bitcoind |
 
-### Scrape (TODO)
+### Scrape (WIP)
 
 The endpoint `/scrape` taking the following JSON
 
-```json
+```javascript
 {
-    "start": <block number>,
-    "end": <optional block number>
+    "start": 594274, // start height
+    "end": 594279 // end height
 }
 ```
 
@@ -99,7 +104,8 @@ The errors are as follows:
 | - | - | - |
 | 400 | invalid json | The JSON didn't meet the format above |
 | 400 | empty interval | The interval was empty |
+| 500 | scrape in progress | An scrape is already in progress |
 
-### Status (TODO)
+### Status (WIP)
 
-The endpoint `/status` returns the current state of the prefix server. This will either return `idle` or `scraping(<start block number>, <current block number>, <end block number>)`.
+The endpoint `/status` returns the current state of the prefix server. This will either return `idle` or `scraping(594274, 594276, 594279)` where the tuple consists of the start, current and end block numbers of the scrape.
