@@ -383,7 +383,7 @@ dependencies = [
 
 [[package]]
 name = "bitcoin-zmq"
-version = "0.1.2"
+version = "0.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "bus_queue 0.4.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1444,7 +1444,7 @@ dependencies = [
  "actix-service 0.4.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "actix-web 1.0.7 (registry+https://github.com/rust-lang/crates.io-index)",
  "bitcoin 0.19.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "bitcoin-zmq 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "bitcoin-zmq 0.1.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "bitcoin_hashes 0.7.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "bytes 0.4.12 (registry+https://github.com/rust-lang/crates.io-index)",
  "clap 2.33.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2618,7 +2618,7 @@ dependencies = [
 "checksum bech32 0.7.1 (registry+https://github.com/rust-lang/crates.io-index)" = "9e0089c35ab7c6f2bc55ab23f769913f0ac65b1023e7e74638a1f43128dd5df2"
 "checksum bindgen 0.49.2 (registry+https://github.com/rust-lang/crates.io-index)" = "846a1fba6535362a01487ef6b10f0275faa12e5c5d835c5c1c627aabc46ccbd6"
 "checksum bitcoin 0.19.2 (registry+https://github.com/rust-lang/crates.io-index)" = "4fd1353f2950c2ca1b67032a8984ef6cf4a732dd757cbb32b6dcc2825a9e56a3"
-"checksum bitcoin-zmq 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)" = "08d52dba9957d34c4150001dc7d9c1619b7a990ba84173426203ca73f8d1471d"
+"checksum bitcoin-zmq 0.1.3 (registry+https://github.com/rust-lang/crates.io-index)" = "328c75ee8afe2d86a4bc77067254bdfbff27ab74cbdb07b3496e6913e810e5b9"
 "checksum bitcoin_hashes 0.7.1 (registry+https://github.com/rust-lang/crates.io-index)" = "db6b697833d852acea530c9e815e6adc724267856b6506bc500362a068a39c7b"
 "checksum bitflags 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "3d155346769a6855b86399e9bc3814ab343cd3d62c7e985113d46a0ec3c281fd"
 "checksum blake2b_simd 0.5.8 (registry+https://github.com/rust-lang/crates.io-index)" = "5850aeee1552f495dd0250014cf64b82b7c8879a89d83b33bbdace2cc4f63182"

@@ -1,8 +1,49 @@
-use std::sync::atomic::{AtomicUsize, Ordering::SeqCst};
+use std::{
+    fmt,
+    sync::atomic::{AtomicUsize, Ordering::SeqCst},
+};
 
 use futures::{future, Future};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, value::from_value, Value};
+
+#[derive(Debug)]
+pub enum ClientError {
+    // Json decoding error.
+    Json(serde_json::Error),
+    // Client error
+    Client(reqwest::Error),
+    // Rpc error,
+    Rpc(serde_json::Value),
+    // Response has neither error nor result.
+    NoErrorOrResult,
+    // Response to a request did not have the expected nonce
+    NonceMismatch,
+}
+
+impl fmt::Display for ClientError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            ClientError::Json(err) => err.fmt(f),
+            ClientError::Client(err) => err.fmt(f),
+            ClientError::Rpc(val) => val.fmt(f),
+            ClientError::NoErrorOrResult => write!(f, "neither error nor result"),
+            ClientError::NonceMismatch => write!(f, "response id didn't match"),
+        }
+    }
+}
+
+impl From<serde_json::Error> for ClientError {
+    fn from(e: serde_json::Error) -> ClientError {
+        ClientError::Json(e)
+    }
+}
+
+impl From<reqwest::Error> for ClientError {
+    fn from(e: reqwest::Error) -> ClientError {
+        ClientError::Client(e)
+    }
+}
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Request {
@@ -94,31 +135,5 @@ impl JsonClient {
             params,
             id: json!(self.nonce.load(SeqCst)),
         }
-    }
-}
-
-#[derive(Debug)]
-pub enum ClientError {
-    // Json decoding error.
-    Json(serde_json::Error),
-    // Client error
-    Client(reqwest::Error),
-    // Rpc error,
-    Rpc(serde_json::Value),
-    // Response has neither error nor result.
-    NoErrorOrResult,
-    // Response to a request did not have the expected nonce
-    NonceMismatch,
-}
-
-impl From<serde_json::Error> for ClientError {
-    fn from(e: serde_json::Error) -> ClientError {
-        ClientError::Json(e)
-    }
-}
-
-impl From<reqwest::Error> for ClientError {
-    fn from(e: reqwest::Error) -> ClientError {
-        ClientError::Client(e)
     }
 }

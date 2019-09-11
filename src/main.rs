@@ -39,14 +39,15 @@ fn insertion_loop(
         .for_each(move |pairs: Vec<(Vec<u8>, Item)>| {
             // TODO: Batch insert
             pairs.iter().for_each(|(input_hash, item)| {
-                // TODO: Catch errors
-                key_db.put(input_hash, item).unwrap();
+                if let Err(e) = key_db.put(input_hash, item) {
+                    error!("{}", e);
+                }
             });
             Ok(())
         })
-        .map_err(|_| {
+        .map_err(|e| {
             // TODO: Better error handling
-            error!("ZMQ stream failed");
+            error!("ZMQ stream failed {}", e);
         })
 }
 
@@ -59,7 +60,7 @@ fn main() -> io::Result<()> {
     info!("starting server @ {}", SETTINGS.bind);
 
     // Open DB
-    let key_db = KeyDB::try_new(&SETTINGS.db_path).unwrap();
+    let key_db = KeyDB::try_new(&SETTINGS.db_path).unwrap(); // Unrecoverable
 
     // Setup Bitcoin client
     let bitcoin_client = BitcoinClient::new(

@@ -44,10 +44,12 @@ pub fn prefix_search(
     // Get tx from bitcoind
     let fut_txs = stream::iter_ok(items)
         .and_then(move |item| {
-            client.get_raw_tx(&item.tx_id).map(move |raw_tx| PrefixItem {
-                raw_tx,
-                input_index: item.index,
-            })
+            client
+                .get_raw_tx(&item.tx_id)
+                .map(move |raw_tx| PrefixItem {
+                    raw_tx,
+                    input_index: item.index,
+                })
         })
         .collect();
 

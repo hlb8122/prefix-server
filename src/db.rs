@@ -19,7 +19,7 @@ impl KeyDB {
 
     pub fn put(&self, hash: &[u8], item: &Item) -> Result<(), Error> {
         let mut raw_item = Vec::with_capacity(item.encoded_len());
-        item.encode(&mut raw_item).unwrap();
+        item.encode(&mut raw_item).unwrap(); // This is safe
         self.0.put(&hash, raw_item)
     }
 
@@ -28,7 +28,10 @@ impl KeyDB {
         let items: Vec<Item> = self
             .0
             .prefix_iterator(addr)
-            .map(|(_prefix, raw_item)| Item::decode(&raw_item[..]).unwrap())
+            .map(|(_prefix, raw_item)| {
+                // This is safe as long as DB is not corrupted
+                Item::decode(&raw_item[..]).unwrap()
+            })
             .collect();
 
         if items.is_empty() {

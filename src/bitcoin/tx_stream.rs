@@ -1,3 +1,5 @@
+use std::fmt;
+
 use bitcoin::{
     consensus::encode::{self, Encodable},
     util::psbt::serialize::Deserialize,
@@ -14,6 +16,16 @@ pub enum StreamError {
     Subscription(SubscriptionError),
     Deserialization(encode::Error),
     Client(ClientError),
+}
+
+impl fmt::Display for StreamError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            StreamError::Subscription(err) => err.fmt(f),
+            StreamError::Deserialization(err) => err.fmt(f),
+            StreamError::Client(err) => err.fmt(f),
+        }
+    }
 }
 
 impl From<SubscriptionError> for StreamError {
@@ -52,6 +64,7 @@ pub fn get_item_stream(
             .iter()
             .map(move |input| {
                 let mut raw = Vec::with_capacity(128);
+                // This is safe presuming bitcoind doesn't return malformed inputs
                 input.consensus_encode(&mut raw).unwrap();
                 Sha256::hash(&raw).to_vec()
             })

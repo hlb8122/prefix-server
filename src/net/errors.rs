@@ -8,7 +8,7 @@ use super::jsonrpc_client::ClientError;
 #[derive(Debug)]
 pub enum ServerError {
     PrefixNotFound,
-    InvalidHex,
+    InvalidHex(FromHexError),
     Client(ClientError),
 }
 
@@ -16,7 +16,7 @@ impl fmt::Display for ServerError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let printable = match self {
             ServerError::PrefixNotFound => "prefix not found",
-            ServerError::InvalidHex => "invalid hex",
+            ServerError::InvalidHex(err) => return err.fmt(f),
             ServerError::Client(_err) => "client error", // TODO: More detail here
         };
         write!(f, "{}", printable)
@@ -24,9 +24,9 @@ impl fmt::Display for ServerError {
 }
 
 impl From<FromHexError> for ServerError {
-    fn from(_err: FromHexError) -> Self {
+    fn from(err: FromHexError) -> Self {
         // TODO: More detail
-        ServerError::InvalidHex
+        ServerError::InvalidHex(err)
     }
 }
 
@@ -40,7 +40,7 @@ impl error::ResponseError for ServerError {
     fn error_response(&self) -> HttpResponse {
         match self {
             ServerError::PrefixNotFound => HttpResponse::BadRequest(),
-            ServerError::InvalidHex => HttpResponse::BadRequest(),
+            ServerError::InvalidHex(_) => HttpResponse::BadRequest(),
             ServerError::Client(_) => HttpResponse::InternalServerError(),
         }
         .body(self.to_string())
