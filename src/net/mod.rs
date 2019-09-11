@@ -30,7 +30,7 @@ pub fn prefix_search(
     db_data: web::Data<KeyDB>,
     client: web::Data<BitcoinClient>,
 ) -> Box<dyn Future<Item = HttpResponse, Error = ServerError>> {
-    if prefix.len() < SETTINGS.min_prefix {
+    if prefix.len() < 2 * SETTINGS.min_prefix {
         return Box::new(err(ServerError::PrefixTooShort));
     }
 

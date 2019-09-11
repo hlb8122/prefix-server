@@ -22,8 +22,8 @@ impl fmt::Display for ServerError {
             ServerError::PrefixTooShort => {
                 return write!(
                     f,
-                    "prefix too shorter than {} bits",
-                    4 * SETTINGS.min_prefix
+                    "prefix too shorter than {} bytes",
+                    SETTINGS.min_prefix
                 )
             }
             ServerError::InvalidHex(err) => return err.fmt(f),
