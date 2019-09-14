@@ -7,9 +7,15 @@ use bitcoin::{
 };
 use bitcoin_hashes::{sha256::Hash as Sha256, Hash};
 use bitcoin_zmq::{errors::SubscriptionError, Topic, ZMQSubscriber};
-use futures::{Future, Stream};
+use futures::{
+    future::{self, Either},
+    stream, Future, Stream,
+};
 
-use crate::{models::Item, net::jsonrpc_client::ClientError};
+use crate::{
+    models::{DbItem, Item},
+    net::jsonrpc_client::ClientError,
+};
 
 #[derive(Debug)]
 pub enum StreamError {
@@ -50,14 +56,22 @@ fn get_tx_stream(
     (stream, broker.map_err(StreamError::Subscription))
 }
 
-pub fn get_item_stream(
-    node_addr: &str,
-) -> (
-    impl Stream<Item = Vec<(Vec<u8>, Item)>, Error = StreamError>,
-    impl Future<Item = (), Error = StreamError> + Send + Sized,
-) {
-    let (tx_stream, connection) = get_tx_stream(node_addr);
-    let item_stream = tx_stream.map(move |tx| {
+pub fn get_db_item_stream(
+    zmq_sub: ZMQSubscriber,
+) -> (impl Stream<Item = Vec<(Vec<u8>, DbItem)>, Error = StreamError>) {
+    // Get stream of transactions from rawtx zmq
+    let tx_stream = zmq_sub.subscribe(Topic::RawTx).then(move |raw_tx| {
+        Transaction::deserialize(&raw_tx.unwrap())
+            .map_err(StreamError::Deserialization)
+            .map(|tx| (0, tx))
+    });
+
+    // Get stream of block hashes via hashblock zmq
+    // let block_stream = zmq_sub.subscribe(Topic::HashBlock).then(move |block_tx| {
+
+    // });
+
+    tx_stream.map(move |(block_height, tx)| {
         // TODO: The memory layout all berked up here
         let mut tx_id: [u8; 32] = tx.txid().into_inner();
         // Note reversal here
@@ -77,14 +91,25 @@ pub fn get_item_stream(
                 let tx_id = tx_id.clone(); // TODO: Remove this clone?
                 (
                     input_hash,
-                    Item {
-                        index: index as u32,
+                    DbItem {
+                        input_index: index as u32,
                         tx_id,
+                        block_height,
                     },
                 )
             })
             .collect()
-    });
-
-    (item_stream, connection)
+    })
 }
+
+// pub fn scrape(
+//     zmq_sub: ZMQSubscriber,
+//     start: u32,
+//     opt_end: Option<u32>,
+// ) -> impl Stream<Item = Vec<(Vec<u8>, Item)>, Error = StreamError> {
+//     let fut_end = match opt_end {
+//         Some(end) => Either::A(future::ok(end)),
+//         None => Either::B(),
+//     };
+//     let fut_scrape = stream::iter_ok(start..end).and_then(|block_height| {});
+// }

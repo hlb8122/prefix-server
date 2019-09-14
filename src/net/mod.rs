@@ -1,7 +1,6 @@
 pub mod errors;
 pub mod jsonrpc_client;
 
-use actix_web::{web, HttpResponse};
 use futures::{future::err, stream, Future, Stream};
 use serde_derive::Serialize;
 
@@ -9,27 +8,13 @@ use crate::{bitcoin::BitcoinClient, db::KeyDB, SETTINGS};
 
 use errors::*;
 
-#[derive(Serialize)]
-struct PrefixResponse {
-    result: Vec<PrefixItem>,
-}
-
-#[derive(Serialize)]
-struct PrefixItem {
-    raw_tx: String,
-    input_index: u32,
-}
-
-pub fn status() -> Result<HttpResponse, ServerError> {
-    // TODO
-    Ok(HttpResponse::Ok().finish())
-}
+type ItemStream = Box<dyn Stream<Item = Item, Error = tower_grpc::Status> + Send>;
 
 pub fn prefix_search(
-    prefix: web::Path<String>,
+    prefix: Vec<u8>,
     db_data: web::Data<KeyDB>,
     client: web::Data<BitcoinClient>,
-) -> Box<dyn Future<Item = HttpResponse, Error = ServerError>> {
+) -> ItemStream {
     if prefix.len() < 2 * SETTINGS.min_prefix {
         return Box::new(err(ServerError::PrefixTooShort));
     }
@@ -52,7 +37,7 @@ pub fn prefix_search(
                 .get_raw_tx(&item.tx_id)
                 .map(move |raw_tx| PrefixItem {
                     raw_tx,
-                    input_index: item.index,
+                    input_index: item.input_index,
                 })
         })
         .collect();

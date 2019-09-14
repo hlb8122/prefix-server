@@ -1,24 +1,30 @@
 #[macro_use]
 extern crate clap;
+#[macro_use]
+extern crate lazy_static;
 
 pub mod bitcoin;
 pub mod db;
 pub mod net;
 pub mod settings;
 
-use std::{io, sync::RwLock};
+use std::sync::RwLock;
 
-use actix_web::{middleware::Logger, web, App, HttpServer};
+use bitcoin_zmq::ZMQSubscriber;
 use env_logger::Env;
-use futures::{Future, Stream};
+use futures::{Future, Stream, FutureResult};
 use lazy_static::lazy_static;
 use log::{error, info};
+use tokio::net::TcpListener;
+use tower_grpc::{Request, Response};
+use tower_hyper::server::{Http, Server};
 
 use crate::{
-    bitcoin::{scraper::Status, tx_stream, BitcoinClient},
+    models::server,
+    bitcoin::{streams, BitcoinClient},
     db::KeyDB,
-    models::Item,
-    net::prefix_search,
+    models::{DbItem, ServerStatus},
+    // net::prefix_search,
     settings::Settings,
 };
 
@@ -28,15 +34,15 @@ pub mod models {
 
 lazy_static! {
     pub static ref SETTINGS: Settings = Settings::new().expect("couldn't load config");
-    pub static ref STATUS: RwLock<Status> = RwLock::new(Status::default());
+    pub static ref STATUS: RwLock<ServerStatus> = RwLock::new(ServerStatus::default());
 }
 
 fn insertion_loop(
-    item_stream: impl Stream<Item = Vec<(Vec<u8>, Item)>, Error = tx_stream::StreamError>,
+    item_stream: impl Stream<Item = Vec<(Vec<u8>, DbItem)>, Error = streams::StreamError>,
     key_db: KeyDB,
 ) -> impl Future<Item = (), Error = ()> {
     item_stream
-        .for_each(move |pairs: Vec<(Vec<u8>, Item)>| {
+        .for_each(move |pairs: Vec<(Vec<u8>, DbItem)>| {
             // TODO: Batch insert
             pairs.iter().for_each(|(input_hash, item)| {
                 if let Err(e) = key_db.put(input_hash, item) {
@@ -51,9 +57,22 @@ fn insertion_loop(
         })
 }
 
-fn main() -> io::Result<()> {
-    let sys = actix_rt::System::new("prefix-server");
+#[derive(Clone)]
+struct PublicService {
+    key_db: KeyDB,
+    bitcoin_client: BitcoinClient
+}
 
+impl server::PublicService for PublicService {
+    type PrefixSearchStream = Box<dyn Stream<Item = Item, Error = tower_grpc::Status> + Send>;
+    type PrefixSearchFuture = FutureResult<Response<Self::PrefixSearchStream>, tower_grpc::Status>;
+
+    fn prefix_search(&mut self, request: Request<Streaming<Item>>) -> Self::PrefixSearchFuture {
+        
+    }
+}
+
+fn main() {
     // Setup logging
     env_logger::from_env(Env::default().default_filter_or("actix_web=info,prefix-server=info"))
         .init();
@@ -70,37 +89,15 @@ fn main() -> io::Result<()> {
     );
 
     // Setup insertion loop
-    let (item_stream, connection) =
-        tx_stream::get_item_stream(&format!("tcp://{}:{}", SETTINGS.node_ip, SETTINGS.zmq_port));
-    actix_rt::Arbiter::current().send(connection.map_err(|e| error!("{:?}", e)));
+    let zmq_addr = format!("tcp://{}:{}", SETTINGS.node_ip, SETTINGS.zmq_port);
+    let (zmq_subscriber, broker) = ZMQSubscriber::new(&zmq_addr, 1024);
+    let item_stream = streams::get_db_item_stream(zmq_subscriber);
 
     let key_db_inner = key_db.clone();
-    actix_rt::Arbiter::current().send(insertion_loop(item_stream, key_db_inner));
 
-    // Setup REST server
-    HttpServer::new(move || {
-        let key_db_inner = key_db.clone();
-        let bitcoin_client_inner = bitcoin_client.clone();
-
-        // Init app
-        App::new()
-            .wrap(Logger::default())
-            .wrap(Logger::new("%a %{User-Agent}i"))
-            .service(
-                web::resource("/prefix/{prefix}")
-                    .data(key_db_inner.clone())
-                    .data(bitcoin_client_inner.clone())
-                    .route(web::get().to_async(prefix_search)),
-            )
-            .service(
-                web::resource("/scrape")
-                    .data(key_db_inner)
-                    .data(bitcoin_client_inner)
-                    .route(web::get().to_async(prefix_search)),
-            )
-    })
-    .bind(&SETTINGS.bind)?
-    .start();
-
-    sys.run()
+    tokio::run(futures::lazy(|| {
+        tokio::spawn(broker.map_err(|e| error!("{:?}", e)));
+        tokio::spawn(insertion_loop(item_stream, key_db_inner));
+        Ok(())
+    }));
 }

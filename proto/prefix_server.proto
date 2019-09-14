@@ -1,0 +1,44 @@
+syntax = "proto3";
+package models;
+
+import "google/protobuf/empty.proto";
+
+message DBItem {
+    bytes tx_id = 1;
+    uint32 input_index = 2;
+    uint32 block_height = 3;
+}
+
+message Item {
+    bytes raw_tx = 1;
+    uint32 input_index = 2;
+    uint32 block_height = 3;
+}
+
+message Interval {
+    uint32 start_height = 2;
+    uint32 end_height = 3;
+}
+
+message SearchParams {
+    bytes prefix = 1;
+    Interval interval = 2;
+}
+
+service PublicService {
+    rpc PrefixSearch(SearchParams) returns (stream Item) {}
+}
+
+message ServerStatus {
+    enum ServerState {
+        IDLE = 0;
+        SCRAPING = 1;
+    }
+    ServerState state = 1;
+    uint32 scrape_position = 2;
+}
+
+service PrivateService {
+    rpc Scrape(Interval) returns (google.protobuf.Empty) {}
+    rpc Status(google.protobuf.Empty) returns (ServerStatus) {}
+}

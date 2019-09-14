@@ -1,6 +1,5 @@
 use std::fmt;
 
-use actix_web::{error, HttpResponse};
 use hex::FromHexError;
 
 use crate::SETTINGS;
@@ -20,11 +19,7 @@ impl fmt::Display for ServerError {
         let printable = match self {
             ServerError::PrefixNotFound => "prefix not found",
             ServerError::PrefixTooShort => {
-                return write!(
-                    f,
-                    "prefix too shorter than {} bytes",
-                    SETTINGS.min_prefix
-                )
+                return write!(f, "prefix too shorter than {} bytes", SETTINGS.min_prefix)
             }
             ServerError::InvalidHex(err) => return err.fmt(f),
             ServerError::Client(_err) => "client error", // TODO: More detail here
@@ -45,14 +40,14 @@ impl From<ClientError> for ServerError {
     }
 }
 
-impl error::ResponseError for ServerError {
-    fn error_response(&self) -> HttpResponse {
-        match self {
-            ServerError::PrefixNotFound => HttpResponse::BadRequest(),
-            ServerError::PrefixTooShort => HttpResponse::BadRequest(),
-            ServerError::InvalidHex(_) => HttpResponse::BadRequest(),
-            ServerError::Client(_) => HttpResponse::InternalServerError(),
-        }
-        .body(self.to_string())
-    }
-}
+// impl error::ResponseError for ServerError {
+//     fn error_response(&self) -> HttpResponse {
+//         match self {
+//             ServerError::PrefixNotFound => HttpResponse::BadRequest(),
+//             ServerError::PrefixTooShort => HttpResponse::BadRequest(),
+//             ServerError::InvalidHex(_) => HttpResponse::BadRequest(),
+//             ServerError::Client(_) => HttpResponse::InternalServerError(),
+//         }
+//         .body(self.to_string())
+//     }
+// }

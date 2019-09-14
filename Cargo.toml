@@ -5,9 +5,6 @@ authors = ["Harry L. Barber <hlbarber93@gmail.com>"]
 edition = "2018"
 
 [dependencies]
-actix-web = "*"
-actix-service = "*"
-actix-rt = "*"
 bitcoin = "*"
 bitcoin-zmq = "*"
 bitcoin_hashes = "*"
@@ -23,10 +20,12 @@ futures = "*"
 prost = "*"
 reqwest = "*"
 rocksdb = "*"
-secp256k1 = "0.12.0"
 serde = "*"
 serde_derive = "*"
 serde_json = "*"
+tower-grpc = { git = "https://github.com/tower-rs/tower-grpc.git", features = ["tower-hyper"] }
+tokio = "*"
+tower-hyper = "*"
 
 [build-dependencies]
-prost-build = "*"
+tower-grpc-build = { git = "https://github.com/tower-rs/tower-grpc.git", features = ["tower-hyper"]  }

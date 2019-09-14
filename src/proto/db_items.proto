@@ -1,7 +1,0 @@
-syntax = "proto3";
-package models;
-
-message Item {
-    bytes tx_id = 1;
-    uint32 index = 2;
-}
