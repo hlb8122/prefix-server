@@ -8,11 +8,14 @@ pub mod db;
 pub mod net;
 pub mod settings;
 
-use std::sync::RwLock;
+use std::{net::SocketAddr, sync::RwLock};
 
 use bitcoin_zmq::ZMQSubscriber;
 use env_logger::Env;
-use futures::{Future, Stream, FutureResult};
+use futures::{
+    future::{self, FutureResult},
+    stream, Future, Stream,
+};
 use lazy_static::lazy_static;
 use log::{error, info};
 use tokio::net::TcpListener;
@@ -20,10 +23,9 @@ use tower_grpc::{Request, Response};
 use tower_hyper::server::{Http, Server};
 
 use crate::{
-    models::server,
     bitcoin::{streams, BitcoinClient},
     db::KeyDB,
-    models::{DbItem, ServerStatus},
+    models::{server, *},
     // net::prefix_search,
     settings::Settings,
 };
@@ -57,18 +59,33 @@ fn insertion_loop(
         })
 }
 
-#[derive(Clone)]
-struct PublicService {
+#[derive(Clone, Debug)]
+pub struct Public {
     key_db: KeyDB,
-    bitcoin_client: BitcoinClient
+    bitcoin_client: BitcoinClient,
 }
 
-impl server::PublicService for PublicService {
+impl server::Public for Public {
     type PrefixSearchStream = Box<dyn Stream<Item = Item, Error = tower_grpc::Status> + Send>;
     type PrefixSearchFuture = FutureResult<Response<Self::PrefixSearchStream>, tower_grpc::Status>;
 
-    fn prefix_search(&mut self, request: Request<Streaming<Item>>) -> Self::PrefixSearchFuture {
-        
+    fn prefix_search(&mut self, request: Request<SearchParams>) -> Self::PrefixSearchFuture {
+        let params = request.into_inner();
+        let key_db = self.key_db.clone();
+        let bitcoin_client = self.bitcoin_client.clone();
+        let item_stream = stream::iter_ok(key_db.prefix_iter(&params.prefix))
+            .and_then(move |db_item| {
+                bitcoin_client
+                    .get_raw_tx(&db_item.tx_id)
+                    .join(future::ok(db_item))
+            })
+            .map(|(raw_tx, db_item)| Item {
+                raw_tx,
+                input_index: db_item.input_index,
+                block_height: db_item.block_height,
+            })
+            .map_err(|err| tower_grpc::Status::new(tower_grpc::Code::Internal, err.to_string()));
+        future::ok(Response::new(Box::new(item_stream)))
     }
 }
 
@@ -80,6 +97,7 @@ fn main() {
 
     // Open DB
     let key_db = KeyDB::try_new(&SETTINGS.db_path).unwrap(); // Unrecoverable
+    let key_db_inner = key_db.clone();
 
     // Setup Bitcoin client
     let bitcoin_client = BitcoinClient::new(
@@ -87,17 +105,40 @@ fn main() {
         SETTINGS.rpc_username.clone(),
         SETTINGS.rpc_password.clone(),
     );
+    let bitcoin_client_inner = bitcoin_client.clone();
+
+    // Setup gRPC
+    let public = Public {
+        key_db,
+        bitcoin_client,
+    };
+    let mut server = Server::new(server::PublicServer::new(public));
+    let addr: SocketAddr = SETTINGS.bind.parse().unwrap();
+    let bind = TcpListener::bind(&addr).unwrap();
+    let http = Http::new().http2_only(true).clone();
+    let serve = bind
+        .incoming()
+        .for_each(move |sock| {
+            if let Err(e) = sock.set_nodelay(true) {
+                return Err(e);
+            }
+
+            let serve = server.serve_with(sock, http.clone());
+            tokio::spawn(serve.map_err(|e| error!("hyper error: {:?}", e)));
+
+            Ok(())
+        })
+        .map_err(|e| eprintln!("accept error: {}", e));
 
     // Setup insertion loop
     let zmq_addr = format!("tcp://{}:{}", SETTINGS.node_ip, SETTINGS.zmq_port);
     let (zmq_subscriber, broker) = ZMQSubscriber::new(&zmq_addr, 1024);
-    let item_stream = streams::get_db_item_stream(zmq_subscriber);
-
-    let key_db_inner = key_db.clone();
+    let item_stream = streams::get_item_stream(zmq_subscriber, bitcoin_client_inner);
 
     tokio::run(futures::lazy(|| {
         tokio::spawn(broker.map_err(|e| error!("{:?}", e)));
         tokio::spawn(insertion_loop(item_stream, key_db_inner));
+        tokio::spawn(serve);
         Ok(())
     }));
 }

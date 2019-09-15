@@ -5,8 +5,8 @@ use rocksdb::{Error, DB};
 
 use crate::models::DbItem;
 
-#[derive(Clone)]
-pub struct KeyDB(Arc<DB>);
+#[derive(Clone, Debug)]
+pub struct KeyDB(pub Arc<DB>);
 
 impl KeyDB {
     pub fn try_new(path: &str) -> Result<Self, Error> {
@@ -23,22 +23,14 @@ impl KeyDB {
         self.0.put(&hash, raw_item)
     }
 
-    pub fn get(&self, addr: &[u8]) -> Option<Vec<DbItem>> {
-        // This panics if stored bytes are fucked
-        let items: Vec<DbItem> = self
-            .0
-            .prefix_iterator(addr)
-            .take_while(|(prefix, _)| &prefix[..addr.len()] == addr)
+    pub fn prefix_iter(self, prefix: &[u8]) -> Vec<DbItem> {
+        self.0
+            .prefix_iterator(&prefix)
+            .take_while(|(prefix, _)| prefix[..prefix.len()] == prefix[..])
             .map(|(_prefix, raw_item)| {
                 // This is safe as long as DB is not corrupted
                 DbItem::decode(&raw_item[..]).unwrap()
             })
-            .collect();
-
-        if items.is_empty() {
-            None
-        } else {
-            Some(items)
-        }
+            .collect()
     }
 }

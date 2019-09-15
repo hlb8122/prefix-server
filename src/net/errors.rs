@@ -2,7 +2,7 @@ use std::fmt;
 
 use hex::FromHexError;
 
-use crate::SETTINGS;
+use crate::{bitcoin::streams::StreamError, SETTINGS};
 
 use super::jsonrpc_client::ClientError;
 
@@ -12,6 +12,7 @@ pub enum ServerError {
     PrefixTooShort,
     InvalidHex(FromHexError),
     Client(ClientError),
+    Streaming(StreamError),
 }
 
 impl fmt::Display for ServerError {
@@ -22,7 +23,8 @@ impl fmt::Display for ServerError {
                 return write!(f, "prefix too shorter than {} bytes", SETTINGS.min_prefix)
             }
             ServerError::InvalidHex(err) => return err.fmt(f),
-            ServerError::Client(_err) => "client error", // TODO: More detail here
+            ServerError::Client(_err) => "client error",
+            ServerError::Streaming(err) => return err.fmt(f),
         };
         write!(f, "{}", printable)
     }
@@ -39,15 +41,3 @@ impl From<ClientError> for ServerError {
         ServerError::Client(err)
     }
 }
-
-// impl error::ResponseError for ServerError {
-//     fn error_response(&self) -> HttpResponse {
-//         match self {
-//             ServerError::PrefixNotFound => HttpResponse::BadRequest(),
-//             ServerError::PrefixTooShort => HttpResponse::BadRequest(),
-//             ServerError::InvalidHex(_) => HttpResponse::BadRequest(),
-//             ServerError::Client(_) => HttpResponse::InternalServerError(),
-//         }
-//         .body(self.to_string())
-//     }
-// }

@@ -25,7 +25,7 @@ message SearchParams {
     Interval interval = 2;
 }
 
-service PublicService {
+service Public {
     rpc PrefixSearch(SearchParams) returns (stream Item) {}
 }
 
@@ -38,7 +38,7 @@ message ServerStatus {
     uint32 scrape_position = 2;
 }
 
-service PrivateService {
+service Private {
     rpc Scrape(Interval) returns (google.protobuf.Empty) {}
     rpc Status(google.protobuf.Empty) returns (ServerStatus) {}
 }

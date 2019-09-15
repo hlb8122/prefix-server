@@ -75,7 +75,7 @@ impl Response {
     }
 }
 
-// A handle to a remote JSONRPC server
+#[derive(Debug)]
 pub struct JsonClient {
     endpoint: String,
     username: String,

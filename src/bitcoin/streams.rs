@@ -1,21 +1,15 @@
 use std::fmt;
 
 use bitcoin::{
-    consensus::encode::{self, Encodable},
+    consensus::encode::{self, Decodable, Encodable},
     util::psbt::serialize::Deserialize,
-    Transaction,
+    Block, Transaction,
 };
 use bitcoin_hashes::{sha256::Hash as Sha256, Hash};
 use bitcoin_zmq::{errors::SubscriptionError, Topic, ZMQSubscriber};
-use futures::{
-    future::{self, Either},
-    stream, Future, Stream,
-};
+use futures::{stream, Future, Stream};
 
-use crate::{
-    models::{DbItem, Item},
-    net::jsonrpc_client::ClientError,
-};
+use crate::{bitcoin::BitcoinClient, models::DbItem, net::jsonrpc_client::ClientError};
 
 #[derive(Debug)]
 pub enum StreamError {
@@ -40,37 +34,36 @@ impl From<SubscriptionError> for StreamError {
     }
 }
 
-fn get_tx_stream(
-    node_addr: &str,
-) -> (
-    impl Stream<Item = Transaction, Error = StreamError>,
-    impl Future<Item = (), Error = StreamError> + Send + Sized,
-) {
-    let (stream, broker) = ZMQSubscriber::single_stream(node_addr, Topic::RawTx, 256);
-    let stream = stream
-        .map_err(|_| unreachable!()) // TODO: Double check that this is safe
-        .and_then(move |raw_tx| {
-            Transaction::deserialize(&raw_tx).map_err(StreamError::Deserialization)
-        });
-
-    (stream, broker.map_err(StreamError::Subscription))
-}
-
-pub fn get_db_item_stream(
+pub fn get_item_stream(
     zmq_sub: ZMQSubscriber,
-) -> (impl Stream<Item = Vec<(Vec<u8>, DbItem)>, Error = StreamError>) {
+    client: BitcoinClient,
+) -> impl Stream<Item = Vec<(Vec<u8>, DbItem)>, Error = StreamError> {
     // Get stream of transactions from rawtx zmq
-    let tx_stream = zmq_sub.subscribe(Topic::RawTx).then(move |raw_tx| {
+    let zmq_tx_stream = zmq_sub.subscribe(Topic::RawTx).then(move |raw_tx| {
         Transaction::deserialize(&raw_tx.unwrap())
             .map_err(StreamError::Deserialization)
             .map(|tx| (0, tx))
     });
 
     // Get stream of block hashes via hashblock zmq
-    // let block_stream = zmq_sub.subscribe(Topic::HashBlock).then(move |block_tx| {
+    let block_tx_stream = zmq_sub
+        .subscribe(Topic::HashBlock)
+        .then(move |hash_block| {
+            let hash_block = hash_block.unwrap();
+            let fut_block = client.get_raw_block(&hash_block);
+            let fut_number = client.get_block_number(&hash_block);
+            fut_number.join(fut_block)
+        })
+        .map_err(StreamError::Client)
+        .and_then(move |(block_height, block_raw)| {
+            let block =
+                Block::consensus_decode(&block_raw[..]).map_err(StreamError::Deserialization)?;
+            let tx_iter = block.txdata.into_iter().map(move |tx| (block_height, tx));
+            Ok(stream::iter_ok(tx_iter))
+        })
+        .flatten();
 
-    // });
-
+    let tx_stream = zmq_tx_stream.select(block_tx_stream);
     tx_stream.map(move |(block_height, tx)| {
         // TODO: The memory layout all berked up here
         let mut tx_id: [u8; 32] = tx.txid().into_inner();
