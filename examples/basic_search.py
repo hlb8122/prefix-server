@@ -1,8 +1,14 @@
-import requests
+import grpc
+from prefix_server_pb2_grpc import PublicStub, SearchParams, BlockInterval
 
-for i in range(256):
-    prefix = "{:02x}".format(i)
-    url = "http://35.232.229.28:8083/prefix/" + prefix
-    result = requests.get(url)
-    if result.content != b'prefix not found':
-        print(url)
+# Create channel
+channel = grpc.insecure_channel('localhost:8950')
+stub = PublicStub(channel)
+
+# Search parameters
+interval = BlockInterval(start=123, end=321)
+search_params = SearchParams(prefix=b'prefix here', interval=interval)
+
+# Iterate through stream
+for item in stub.PrefixSearch(search_params):
+    print("Input", item.input_index, "matched prefix in transaction", item.raw_tx, "at height", item.block_height)

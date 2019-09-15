@@ -15,14 +15,14 @@ message Item {
     uint32 block_height = 3;
 }
 
-message Interval {
-    uint32 start_height = 2;
-    uint32 end_height = 3;
+message BlockInterval {
+    uint32 start = 2;
+    uint32 end = 3;
 }
 
 message SearchParams {
     bytes prefix = 1;
-    Interval interval = 2;
+    BlockInterval interval = 2;
 }
 
 service Public {
@@ -39,6 +39,6 @@ message ServerStatus {
 }
 
 service Private {
-    rpc Scrape(Interval) returns (google.protobuf.Empty) {}
+    rpc Scrape(BlockInterval) returns (google.protobuf.Empty) {}
     rpc Status(google.protobuf.Empty) returns (ServerStatus) {}
 }
