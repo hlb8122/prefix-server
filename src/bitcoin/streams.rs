@@ -7,7 +7,10 @@ use bitcoin::{
 };
 use bitcoin_hashes::{sha256::Hash as Sha256, Hash};
 use bitcoin_zmq::{errors::SubscriptionError, Topic, ZMQSubscriber};
-use futures::{stream, Future, Stream};
+use futures::{
+    future::{self, Either},
+    stream, Future, Stream,
+};
 
 use crate::{bitcoin::BitcoinClient, models::DbItem, net::jsonrpc_client::ClientError};
 
@@ -55,15 +58,21 @@ pub fn get_item_stream(
             fut_number.join(fut_block)
         })
         .map_err(StreamError::Client)
-        .and_then(move |(block_height, block_raw)| {
+        .and_then(move |(block_height, raw_block)| {
             let block =
-                Block::consensus_decode(&block_raw[..]).map_err(StreamError::Deserialization)?;
+                Block::consensus_decode(&raw_block[..]).map_err(StreamError::Deserialization)?;
             let tx_iter = block.txdata.into_iter().map(move |tx| (block_height, tx));
             Ok(stream::iter_ok(tx_iter))
         })
         .flatten();
 
     let tx_stream = zmq_tx_stream.select(block_tx_stream);
+    tx_to_item_stream(tx_stream)
+}
+
+pub fn tx_to_item_stream(
+    tx_stream: impl Stream<Item = (u32, Transaction), Error = StreamError>,
+) -> impl Stream<Item = Vec<(Vec<u8>, DbItem)>, Error = StreamError> {
     tx_stream.map(move |(block_height, tx)| {
         // TODO: The memory layout all berked up here
         let mut tx_id: [u8; 32] = tx.txid().into_inner();
@@ -95,14 +104,45 @@ pub fn get_item_stream(
     })
 }
 
-// pub fn scrape(
-//     zmq_sub: ZMQSubscriber,
-//     start: u32,
-//     opt_end: Option<u32>,
-// ) -> impl Stream<Item = Vec<(Vec<u8>, Item)>, Error = StreamError> {
-//     let fut_end = match opt_end {
-//         Some(end) => Either::A(future::ok(end)),
-//         None => Either::B(),
-//     };
-//     let fut_scrape = stream::iter_ok(start..end).and_then(|block_height| {});
-// }
+pub fn scrape(
+    client: BitcoinClient,
+    start: u32,
+    opt_end: Option<u32>,
+) -> impl Stream<Item = Vec<(Vec<u8>, DbItem)>, Error = StreamError> {
+    let client_inner = client.clone();
+    let fut_end = match opt_end {
+        Some(end) => Either::A(future::ok(end)),
+        None => {
+            // Get latest block
+            Either::B(client_inner.get_chain_length())
+        }
+    };
+    let tx_stream = fut_end
+        .map_err(StreamError::Client)
+        .and_then(move |end| {
+            Ok(stream::iter_ok(start..end)
+                .and_then(move |block_height| {
+                    let client_inner = client.clone();
+                    client
+                        .clone()
+                        .get_block_hash(block_height)
+                        .map_err(StreamError::Client)
+                        .and_then(move |block_hash| {
+                            client_inner
+                                .get_raw_block(&block_hash)
+                                .map_err(StreamError::Client)
+                                .and_then(move |raw_block| {
+                                    let block = Block::consensus_decode(&raw_block[..])
+                                        .map_err(StreamError::Deserialization)?;
+                                    let tx_iter =
+                                        block.txdata.into_iter().map(move |tx| (block_height, tx));
+                                    Ok(stream::iter_ok(tx_iter))
+                                })
+                        })
+                })
+                .flatten())
+        })
+        .into_stream()
+        .flatten();
+    tx_to_item_stream(tx_stream)
+}
