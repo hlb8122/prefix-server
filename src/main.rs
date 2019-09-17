@@ -8,7 +8,7 @@ pub mod db;
 pub mod net;
 pub mod settings;
 
-use std::{net::SocketAddr, sync::RwLock};
+use std::{net::SocketAddr, sync::Mutex};
 
 use bitcoin_zmq::ZMQSubscriber;
 use env_logger::Env;
@@ -36,7 +36,7 @@ pub mod models {
 
 lazy_static! {
     pub static ref SETTINGS: Settings = Settings::new().expect("couldn't load config");
-    pub static ref STATUS: RwLock<ServerStatus> = RwLock::new(ServerStatus::default());
+    pub static ref STATUS: Mutex<ServerStatus> = Mutex::new(ServerStatus::default());
 }
 
 fn insertion_loop(
@@ -63,6 +63,41 @@ fn insertion_loop(
 pub struct Public {
     key_db: KeyDB,
     bitcoin_client: BitcoinClient,
+}
+
+// TODO: Put on private port
+impl server::Private for Public {
+    type ScrapeFuture = future::FutureResult<Response<()>, tower_grpc::Status>;
+    type StatusFuture = future::FutureResult<Response<ServerStatus>, tower_grpc::Status>;
+
+    fn scrape(&mut self, request: Request<BlockInterval>) -> Self::ScrapeFuture {
+        let interval = request.into_inner();
+        if interval.start > interval.end {
+            // TODO: Return error here
+            // return future::err()
+        }
+        let opt_end = match interval.end {
+            0 => None,
+            other => Some(other),
+        };
+        let item_stream = insertion_loop(
+            streams::scrape(self.bitcoin_client.clone(), interval.start, opt_end),
+            self.key_db.clone(),
+        )
+        .map_err(|err| {
+            // Set to idle on error
+            let mut status_lock = STATUS.lock().unwrap();
+            status_lock.state = 0;
+            err
+        });
+
+        tokio::spawn(item_stream);
+        future::ok(Response::new(()))
+    }
+
+    fn status(&mut self, _: Request<()>) -> Self::StatusFuture {
+        future::ok(Response::new(STATUS.lock().unwrap().to_owned()))
+    }
 }
 
 impl server::Public for Public {

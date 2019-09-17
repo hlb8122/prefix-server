@@ -12,7 +12,7 @@ use futures::{
     stream, Future, Stream,
 };
 
-use crate::{bitcoin::BitcoinClient, models::DbItem, net::jsonrpc_client::ClientError};
+use crate::{bitcoin::BitcoinClient, models::DbItem, net::jsonrpc_client::ClientError, STATUS};
 
 #[derive(Debug)]
 pub enum StreamError {
@@ -109,6 +109,8 @@ pub fn scrape(
     start: u32,
     opt_end: Option<u32>,
 ) -> impl Stream<Item = Vec<(Vec<u8>, DbItem)>, Error = StreamError> {
+    let mut status_lock = STATUS.lock().unwrap();
+    status_lock.state = 1;
     let client_inner = client.clone();
     let fut_end = match opt_end {
         Some(end) => Either::A(future::ok(end)),
@@ -122,6 +124,10 @@ pub fn scrape(
         .and_then(move |end| {
             Ok(stream::iter_ok(start..end)
                 .and_then(move |block_height| {
+                    // Set scrape position
+                    let mut status_lock = STATUS.lock().unwrap();
+                    status_lock.scrape_position = block_height;
+
                     let client_inner = client.clone();
                     client
                         .clone()
