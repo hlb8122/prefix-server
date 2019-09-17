@@ -8,7 +8,7 @@ from google.protobuf.json_format import MessageToJson
 channel = grpc.insecure_channel('localhost:8951')
 stub = PrivateStub(channel)
 
-# Iterate through stream
+# Get Status
 status = stub.Status(empty_pb2.Empty())
 print("State {} and current scrape position {}".format(
     status.state, status.scrape_position))

@@ -7,7 +7,6 @@ from prefix_server_pb2 import BlockInterval
 channel = grpc.insecure_channel('localhost:8951')
 stub = PrivateStub(channel)
 
-# Scrape
+# Start Scrape
 interval = BlockInterval(start=0, end=3)
-status = stub.Scrape(interval)
-print(status)
+stub.Scrape(interval)
