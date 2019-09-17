@@ -8,10 +8,13 @@ args:
         long: config
         help: Configuration file
         takes_value: true
-    - bind:
-        short: b
-        long: bind
-        help: Bind address for server
+    - public-bind:
+        long: public-bind
+        help: Public bind address for server
+        takes_value: true
+    - private-bind:
+        long: private-bind
+        help: Private bind address for server
         takes_value: true
     - node-ip:
         long: node-ip

@@ -4,7 +4,8 @@ use serde_derive::Deserialize;
 
 #[derive(Debug, Deserialize)]
 pub struct Settings {
-    pub bind: String,
+    pub public_bind: String,
+    pub private_bind: String,
     pub node_ip: String,
     pub rpc_port: u16,
     pub rpc_username: String,
@@ -25,7 +26,8 @@ impl Settings {
             Some(some) => some,
             None => return Err(ConfigError::Message("no home directory".to_string())),
         };
-        s.set_default("bind", "127.0.0.1:8950").unwrap();
+        s.set_default("public_bind", "[::1]:8950").unwrap();
+        s.set_default("private_bind", "[::1]:8951").unwrap();
         s.set_default("node_ip", "127.0.0.1").unwrap();
         s.set_default("rpc_port", "18443").unwrap();
         s.set_default("rpc_username", "username").unwrap();
@@ -43,9 +45,14 @@ impl Settings {
         let config_path = matches.value_of("config").unwrap_or(default_config_str);
         s.merge(File::with_name(config_path).required(false))?;
 
-        // Set bind address from cmd line
-        if let Some(bind) = matches.value_of("bind") {
-            s.set("bind", bind)?;
+        // Set public bind address from cmd line
+        if let Some(bind) = matches.value_of("public-bind") {
+            s.set("public_bind", bind)?;
+        }
+
+        // Set private bind address from cmd line
+        if let Some(bind) = matches.value_of("private-bind") {
+            s.set("private_bind", bind)?;
         }
 
         // Set node IP from cmd line

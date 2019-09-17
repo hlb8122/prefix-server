@@ -71,6 +71,7 @@ impl server::Private for Public {
     type StatusFuture = future::FutureResult<Response<ServerStatus>, tower_grpc::Status>;
 
     fn scrape(&mut self, request: Request<BlockInterval>) -> Self::ScrapeFuture {
+        info!("scrape call");
         let interval = request.into_inner();
         if interval.start > interval.end {
             // TODO: Return error here
@@ -96,6 +97,7 @@ impl server::Private for Public {
     }
 
     fn status(&mut self, _: Request<()>) -> Self::StatusFuture {
+        info!("status call");
         future::ok(Response::new(STATUS.lock().unwrap().to_owned()))
     }
 }
@@ -105,6 +107,7 @@ impl server::Public for Public {
     type PrefixSearchFuture = FutureResult<Response<Self::PrefixSearchStream>, tower_grpc::Status>;
 
     fn prefix_search(&mut self, request: Request<SearchParams>) -> Self::PrefixSearchFuture {
+        info!("prefix search call");
         let params = request.into_inner();
         let key_db = self.key_db.clone();
         let bitcoin_client = self.bitcoin_client.clone();
@@ -128,7 +131,7 @@ fn main() {
     // Setup logging
     env_logger::from_env(Env::default().default_filter_or("actix_web=info,prefix-server=info"))
         .init();
-    info!("starting server @ {}", SETTINGS.bind);
+    info!("starting server on public address {} and private address {}", SETTINGS.public_bind, SETTINGS.private_bind);
 
     // Open DB
     let key_db = KeyDB::try_new(&SETTINGS.db_path).unwrap(); // Unrecoverable
@@ -142,28 +145,48 @@ fn main() {
     );
     let bitcoin_client_inner = bitcoin_client.clone();
 
-    // Setup gRPC
+    // Setup gRPC public
     let public = Public {
         key_db,
         bitcoin_client,
     };
-    let mut server = Server::new(server::PublicServer::new(public));
-    let addr: SocketAddr = SETTINGS.bind.parse().unwrap();
-    let bind = TcpListener::bind(&addr).unwrap();
+    let mut public_server = Server::new(server::PublicServer::new(public.clone()));
+    let public_addr: SocketAddr = SETTINGS.public_bind.parse().unwrap();
+    let public_bind = TcpListener::bind(&public_addr).unwrap();
     let http = Http::new().http2_only(true).clone();
-    let serve = bind
+    let public_serve = public_bind
         .incoming()
         .for_each(move |sock| {
             if let Err(e) = sock.set_nodelay(true) {
                 return Err(e);
             }
 
-            let serve = server.serve_with(sock, http.clone());
-            tokio::spawn(serve.map_err(|e| error!("hyper error: {:?}", e)));
+            let public_serve = public_server.serve_with(sock, http.clone());
+            tokio::spawn(public_serve.map_err(|e| error!("hyper error: {:?}", e)));
 
             Ok(())
         })
         .map_err(|e| eprintln!("accept error: {}", e));
+    
+    let private = public.clone();
+    let private_addr: SocketAddr = SETTINGS.private_bind.parse().unwrap();
+    let private_bind = TcpListener::bind(&private_addr).unwrap();
+    let http = Http::new().http2_only(true).clone();
+    let mut private_server = Server::new(server::PrivateServer::new(private));
+    let private_serve = private_bind
+        .incoming()
+        .for_each(move |sock| {
+            if let Err(e) = sock.set_nodelay(true) {
+                return Err(e);
+            }
+
+            let private_serve = private_server.serve_with(sock, http.clone());
+            tokio::spawn(private_serve.map_err(|e| error!("hyper error: {:?}", e)));
+
+            Ok(())
+        })
+        .map_err(|e| eprintln!("accept error: {}", e));
+
 
     // Setup insertion loop
     let zmq_addr = format!("tcp://{}:{}", SETTINGS.node_ip, SETTINGS.zmq_port);
@@ -173,7 +196,8 @@ fn main() {
     tokio::run(futures::lazy(|| {
         tokio::spawn(broker.map_err(|e| error!("{:?}", e)));
         tokio::spawn(insertion_loop(item_stream, key_db_inner));
-        tokio::spawn(serve);
+        tokio::spawn(public_serve);
+        tokio::spawn(private_serve);
         Ok(())
     }));
 }
