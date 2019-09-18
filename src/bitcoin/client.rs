@@ -41,7 +41,7 @@ impl BitcoinClient {
         block_id: &[u8],
     ) -> Box<dyn Future<Item = Vec<u8>, Error = ClientError> + Send> {
         let request = self.0.build_request(
-            "getrawblock".to_string(),
+            "getblock".to_string(),
             vec![
                 Value::String(hex::encode(block_id)),
                 Value::Number(0.into()),

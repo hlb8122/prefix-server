@@ -3,7 +3,7 @@ use std::sync::Arc;
 use prost::Message;
 use rocksdb::{Error, DB};
 
-use crate::models::DbItem;
+use crate::models::{BlockInterval, DbItem};
 
 #[derive(Clone, Debug)]
 pub struct KeyDB(pub Arc<DB>);
@@ -23,14 +23,30 @@ impl KeyDB {
         self.0.put(&hash, raw_item)
     }
 
-    pub fn prefix_iter(self, prefix: &[u8]) -> Vec<DbItem> {
-        self.0
+    pub fn prefix_iter(self, prefix: &[u8], opt_interval: Option<BlockInterval>) -> Vec<DbItem> {
+        let unfiltered = self
+            .0
             .prefix_iterator(&prefix)
             .take_while(|(prefix, _)| prefix[..prefix.len()] == prefix[..])
             .map(|(_prefix, raw_item)| {
                 // This is safe as long as DB is not corrupted
                 DbItem::decode(&raw_item[..]).unwrap()
-            })
-            .collect()
+            });
+        // Filter
+        match opt_interval {
+            Some(interval) => match interval.end {
+                0 => unfiltered
+                    .filter(|db_item| db_item.block_height >= interval.start)
+                    .collect(),
+                y => unfiltered
+                    .filter(|db_item| {
+                        db_item.block_height >= interval.start && db_item.block_height <= y
+                    })
+                    .collect(),
+            },
+            None => unfiltered
+                .filter(|db_item| db_item.block_height == 0)
+                .collect(),
+        }
     }
 }

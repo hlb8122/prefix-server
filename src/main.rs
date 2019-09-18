@@ -111,7 +111,7 @@ impl server::Public for Public {
         let params = request.into_inner();
         let key_db = self.key_db.clone();
         let bitcoin_client = self.bitcoin_client.clone();
-        let item_stream = stream::iter_ok(key_db.prefix_iter(&params.prefix))
+        let item_stream = stream::iter_ok(key_db.prefix_iter(&params.prefix, params.interval))
             .and_then(move |db_item| {
                 bitcoin_client
                     .get_raw_tx(&db_item.tx_id)
@@ -131,7 +131,10 @@ fn main() {
     // Setup logging
     env_logger::from_env(Env::default().default_filter_or("actix_web=info,prefix-server=info"))
         .init();
-    info!("starting server on public address {} and private address {}", SETTINGS.public_bind, SETTINGS.private_bind);
+    info!(
+        "starting server on public address {} and private address {}",
+        SETTINGS.public_bind, SETTINGS.private_bind
+    );
 
     // Open DB
     let key_db = KeyDB::try_new(&SETTINGS.db_path).unwrap(); // Unrecoverable
@@ -167,7 +170,7 @@ fn main() {
             Ok(())
         })
         .map_err(|e| eprintln!("accept error: {}", e));
-    
+
     let private = public.clone();
     let private_addr: SocketAddr = SETTINGS.private_bind.parse().unwrap();
     let private_bind = TcpListener::bind(&private_addr).unwrap();
@@ -186,7 +189,6 @@ fn main() {
             Ok(())
         })
         .map_err(|e| eprintln!("accept error: {}", e));
-
 
     // Setup insertion loop
     let zmq_addr = format!("tcp://{}:{}", SETTINGS.node_ip, SETTINGS.zmq_port);
