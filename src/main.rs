@@ -42,21 +42,16 @@ lazy_static! {
 fn insertion_loop(
     item_stream: impl Stream<Item = Vec<(Vec<u8>, DbItem)>, Error = streams::StreamError>,
     key_db: KeyDB,
-) -> impl Future<Item = (), Error = ()> {
-    item_stream
-        .for_each(move |pairs: Vec<(Vec<u8>, DbItem)>| {
-            // TODO: Batch insert
-            pairs.iter().for_each(|(input_hash, item)| {
-                if let Err(e) = key_db.put(input_hash, item) {
-                    error!("{}", e);
-                }
-            });
-            Ok(())
-        })
-        .map_err(|e| {
-            // TODO: Better error handling
-            error!("ZMQ stream failed {}", e);
-        })
+) -> impl Future<Item = (), Error = streams::StreamError> {
+    item_stream.for_each(move |pairs: Vec<(Vec<u8>, DbItem)>| {
+        // TODO: Batch insert
+        pairs.iter().for_each(|(input_hash, item)| {
+            if let Err(e) = key_db.put(input_hash, item) {
+                error!("{}", e);
+            }
+        });
+        Ok(())
+    })
 }
 
 #[derive(Clone, Debug)]
@@ -85,11 +80,14 @@ impl server::Private for Public {
             streams::scrape(self.bitcoin_client.clone(), interval.start, opt_end),
             self.key_db.clone(),
         )
-        .map_err(|err| {
+        .then(|res| {
             // Set to idle on error
             let mut status_lock = STATUS.lock().unwrap();
             status_lock.state = 0;
-            err
+            if let Err(err) = res {
+                error!("{}", err);
+            }
+            Ok(())
         });
 
         tokio::spawn(item_stream);
@@ -194,10 +192,13 @@ fn main() {
     let zmq_addr = format!("tcp://{}:{}", SETTINGS.node_ip, SETTINGS.zmq_port);
     let (zmq_subscriber, broker) = ZMQSubscriber::new(&zmq_addr, 1024);
     let item_stream = streams::get_item_stream(zmq_subscriber, bitcoin_client_inner);
+    let insertion = insertion_loop(item_stream, key_db_inner).map_err(|err| {
+        error!("ZMQ stream error {}", err);
+    });
 
     tokio::run(futures::lazy(|| {
         tokio::spawn(broker.map_err(|e| error!("{:?}", e)));
-        tokio::spawn(insertion_loop(item_stream, key_db_inner));
+        tokio::spawn(insertion);
         tokio::spawn(public_serve);
         tokio::spawn(private_serve);
         Ok(())
