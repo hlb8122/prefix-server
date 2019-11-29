@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use prost::Message;
-use rocksdb::{Error, DB};
+use rocksdb::{Direction, Error, IteratorMode, DB};
 
 use crate::models::{BlockInterval, DbItem};
 
@@ -26,7 +26,7 @@ impl KeyDB {
     pub fn prefix_iter(self, prefix: &[u8], opt_interval: Option<BlockInterval>) -> Vec<DbItem> {
         let unfiltered = self
             .0
-            .prefix_iterator(&prefix)
+            .iterator(IteratorMode::From(&prefix, Direction::Forward))
             .take_while(|(prefix, _)| prefix[..prefix.len()] == prefix[..])
             .map(|(_prefix, raw_item)| {
                 // This is safe as long as DB is not corrupted
