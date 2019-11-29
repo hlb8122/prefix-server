@@ -23,11 +23,15 @@ impl KeyDB {
         self.0.put(&hash, raw_item)
     }
 
-    pub fn prefix_iter(self, prefix: &[u8], opt_interval: Option<BlockInterval>) -> Vec<DbItem> {
+    pub fn prefix_iter(
+        self,
+        start_prefix: &[u8],
+        opt_interval: Option<BlockInterval>,
+    ) -> Vec<DbItem> {
         let unfiltered = self
             .0
-            .iterator(IteratorMode::From(&prefix, Direction::Forward))
-            .take_while(|(prefix, _)| prefix[..prefix.len()] == prefix[..])
+            .iterator(IteratorMode::From(&start_prefix, Direction::Forward))
+            .take_while(|(prefix, _)| prefix[..start_prefix.len()] == start_prefix[..])
             .map(|(_prefix, raw_item)| {
                 // This is safe as long as DB is not corrupted
                 DbItem::decode(&raw_item[..]).unwrap()
